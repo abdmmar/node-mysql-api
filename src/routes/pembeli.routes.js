@@ -1,18 +1,24 @@
-module.exports = function (app) {
-  const pembeli = require("../controllers/pembeli.controller");
+const express = require("express");
+const auth = require("../middleware/auth.middleware");
+const router = express.Router();
+const awaitHandlerFactory = require("../middleware/awaitHandlerFactory.middleware");
+const pembeliController = require("../controllers/pembeli.controller");
 
-  //Add Pembeli
-  app.post("/api/pembeli", pembeli.create);
+const {
+  validateLogin,
+} = require("../middleware/validators/pembeliValidator.middleware");
 
-  //Retrieve all Pembeli
-  app.get("/api/pembeli", pembeli.findAll);
+//Retrieve Info Pembeli
+router.get(
+  "/:IDpembeli",
+  auth(),
+  awaitHandlerFactory(pembeliController.getPembeliById)
+);
 
-  // //Retrieve a single Pembeli by Id
-  // app.get("/api/pembeli/:id", pembeli.findOne);
+router.post(
+  "/login",
+  validateLogin,
+  awaitHandlerFactory(pembeliController.login)
+);
 
-  // //Update a Pembeli by Id
-  // app.put("/api/pembeli/:id", pembeli.update);
-
-  // //Delete a Pembeli by Id
-  // app.delete("/api/pembeli/:id", pembeli.delete);
-};
+module.exports = router;

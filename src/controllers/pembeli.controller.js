@@ -1,45 +1,77 @@
-const mysql = require("mysql");
+const PembeliModel = require("../model/pembeli.model");
+const HttpException = require("../utils/HttpException.utils");
+const { validationResult } = require("express-validator");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const dotenv = require("dotenv");
+dotenv.config();
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "catering_order",
-});
+class PembeliController {
+  getAllPembeli = async (req, res, next) => {
+    let pembeliList = await PembeliModel.find();
+    if (!pembeliList.length) {
+      throw new HttpException(404, "Pembeli not found!");
+    }
 
-db.connect((err) => {
-  if (err) {
-    throw err;
-  }
-  console.log("MySQL Connected...");
-});
+    pembeliList = pembeliList.map((pembeli) => {
+      const { password, ...pembeliWithoutPassword } = pembeli;
+      return pembeliWithoutPassword;
+    });
 
-exports.create = function (req, res) {
-  const newPembeli = req.body;
-  const { nama, email, telepon, password } = newPembeli;
-  const pembeli = {
-    nama: nama,
-    email: email,
-    telepon: telepon,
-    password: password,
+    res.send(pembeliList);
   };
-  const sql = "INSERT INTO pembeli SET ?";
-  let query = db.query(sql, pembeli, (err, result) => {
-    if (err) {
-      throw err;
-    }
-    console.log("Pembeli added");
-    res.send(result);
-  });
-};
 
-exports.findAll = function (req, res) {
-  const sql = "SELECT * FROM pembeli";
-  let query = db.query(sql, (err, result) => {
-    if (err) {
-      throw err;
+  getPembeliById = async (req, res, next) => {
+    const user = await PembeliModel.findOne({
+      IDpembeli: req.params.IDpembeli,
+    });
+    if (!user) {
+      throw new HttpException(404, "Pembeli not found");
     }
 
-    res.send(result);
-  });
-};
+    const { password, ...userWithoutPassword } = user;
+
+    res.send(userWithoutPassword);
+  };
+
+  login = async (req, res, next) => {
+    this.checkValidation(req);
+
+    const { email, password: pass } = req.body;
+
+    const pembeli = await PembeliModel.findOne({ email });
+
+    if (!pembeli) {
+      throw new HttpException(401, "Unable to login!");
+    }
+
+    const isMatch = await bcrypt.compare(pass, pembeli.password);
+
+    if (!isMatch) {
+      throw new HttpException(401, "Incorrect password!");
+    }
+
+    const secretKey = process.env.SECRET_JWT || "";
+    const token = jwt.sign(
+      {
+        IDpembeli: pembeli.IDpembeli.toString(),
+      },
+      secretKey,
+      {
+        expiresIn: "24h",
+      }
+    );
+
+    const { password, ...pembeliWithoutPassword } = pembeli;
+    res.send({ ...pembeliWithoutPassword, token });
+  };
+
+  checkValidation = (req) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new HttpException(400, "Validation faild", errors);
+    }
+  };
+}
+
+module.exports = new PembeliController();
